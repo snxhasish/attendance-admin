@@ -1,5 +1,11 @@
-import { ArrowLeftIcon, Icon } from "@/components/ui/icon";
+import ClassActionCard from "@/components/class/class-action-card";
+import { Box } from "@/components/ui/box";
+import { Button, ButtonIcon, ButtonSpinner, ButtonText } from "@/components/ui/button";
+import { Divider } from "@/components/ui/divider";
+import { ArrowLeftIcon, CheckIcon, EyeIcon, Icon } from "@/components/ui/icon";
 import { Pressable } from "@/components/ui/pressable";
+import { SkeletonText } from "@/components/ui/skeleton";
+import { markAttendance } from "@/lib/attendance";
 import { getMyClasses } from "@/lib/class";
 import { getUserToken } from "@/lib/user-token";
 import { Class } from "@/types/Class";
@@ -17,21 +23,22 @@ export default function ScanStudents() {
     const [loading, setLoading] = useState(true);
     const [devices, setDevices] = useState<Device[]>([]);
     const [scanning, setScanning] = useState(false);
+    const [marking, setMarking] = useState(false);
     const [logs, setLogs] = useState<string[]>([]);
 
     useEffect(() => {
-            (async () => {
-                const token = await getUserToken();
-                if (!token) return;
-    
-                const classes = await getMyClasses(token);
-                const cc = classes.find((c) => c.classCode === id);
-    
-                if (!cc) return;
-                setClass(cc);
-                setLoading(false);
-            })();
-        }, []);
+        (async () => {
+            const token = await getUserToken();
+            if (!token) return;
+
+            const classes = await getMyClasses(token);
+            const cc = classes.find((c) => c.classCode === id);
+
+            if (!cc) return;
+            setClass(cc);
+            setLoading(false);
+        })();
+    }, []);
 
     const log = (msg: string) => {
         console.log(msg);
@@ -105,6 +112,15 @@ export default function ScanStudents() {
         }
     };
 
+    const handleMarkAttendance = async () => {
+        setMarking(true);
+        const token = await getUserToken()
+        devices.map(async (d) => {
+            await markAttendance((d.name?.substring(3, d.name.length)) as string, id as string, "present", token as string)
+        });
+        alert(`Attendance Marked for ${devices.length} students.`);
+    }
+
     useEffect(() => {
         log("Component mounted — BLE Manager ready.");
         return () => {
@@ -142,121 +158,99 @@ export default function ScanStudents() {
                 <Text className="text-gray-600 text-base">{loading ? "Loading" : (CLASS?.students.length ?? 0)} Students</Text>
             </View>
 
-            <View className="flex-row flex-wrap gap-x-4 gap-y-4">
-                <View className="w-[48%]">
-                    <ClassActionCard
-                        icon={CalendarDaysIcon}
-                        title="Take Attendance"
-                        onPress={() => {
-                            router.push({
-                                pathname: "/class/[id]/attendance",
-                                params: {
-                                    id: id as string
-                                }
-                            })
-                        }}
-                    />
-                </View>
-                <View className="w-[48%]">
-                    <ClassActionCard
-                        icon={MenuIcon}
-                        title="View Students"
-                        onPress={() => {
-                            router.push({
-                                pathname: "/class/[id]/students",
-                                params: {
-                                    id: id as string
-                                }
-                            })
-                        }}
-                    />
-                </View>
-                <View className="w-[48%]">
-                    <ClassActionCard
-                        icon={EyeIcon}
-                        title="View Attendance"
-                    />
-                </View>
-                <View className="w-[48%]">
-                    <ClassActionCard
-                        icon={SettingsIcon}
-                        title="Manage Class"
-                        onPress={() => {
-                            router.push({
-                                pathname: "/class/[id]/manage",
-                                params: {
-                                    id: id as string
-                                }
-                            })
-                        }}
-                    />
-                </View>
-            </View>
+            <Box className="flex flex-col gap-4">
+                <Button
+                    onPress={scanStudents}
+                    isDisabled={scanning}
+                >
+                    {
+                        scanning ?
+                            <ButtonSpinner />
+                            :
+                            <ButtonIcon as={EyeIcon} />
+                    }
+                    {
+                        scanning ?
+                            <ButtonText>
+                                Scanning Students
+                            </ButtonText>
+                            :
+                            <ButtonText>
+                                Scan Students
+                            </ButtonText>
+                    }
+                </Button>
 
+                {
+                    !scanning && devices.length > 0 ?
+                        <Button
+                            onPress={handleMarkAttendance}
+                            isDisabled={scanning}
+                        >
+                            {
+                                scanning ?
+                                    <ButtonSpinner />
+                                    :
+                                    <ButtonIcon as={CheckIcon} />
+                            }
+                            <ButtonText>
+                                Mark Attendance
+                            </ButtonText>
+                        </Button>
+                        : null
+                }
+
+                <Divider />
+
+                <Text className="text-lg font-medium">
+                    Scanned Students
+                </Text>
+
+                <FlatList
+                    data={devices}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                        <View
+                            style={{
+                                backgroundColor: "#f4f4f4",
+                                padding: 12,
+                                borderRadius: 8,
+                                marginBottom: 8,
+                            }}
+                        >
+                            <Text style={{ fontWeight: "bold" }}>{item.name || item.localName || "Unnamed"}</Text>
+                            <Text style={{ color: "#666", fontSize: 12 }}>{item.id}</Text>
+                        </View>
+                    )}
+                    ListEmptyComponent={
+                        !scanning ? (
+                            <Text style={{ textAlign: "center", color: "#666" }}>
+                                No students found
+                            </Text>
+                        ) : null
+                    }
+                />
+
+                <Divider />
+
+                <Text style={{ fontWeight: "bold", marginTop: 12 }}>Realtime Logs:</Text>
+                <ScrollView
+                    style={{
+                        flex: 1,
+                        marginTop: 4,
+                        borderWidth: 1,
+                        borderColor: "#ddd",
+                        padding: 8,
+                        borderRadius: 8,
+                    }}
+                >
+                    {logs.map((line, i) => (
+                        <Text key={i} style={{ fontSize: 12, color: "#333", marginBottom: 4 }}>
+                            {line}
+                        </Text>
+                    ))}
+                </ScrollView>
+            </Box>
         </View>
-
-        // <View style={{ flex: 1, backgroundColor: "#fff", padding: 16 }}>
-        //     <TouchableOpacity
-        //         onPress={scanStudents}
-        //         disabled={scanning}
-        //         style={{
-        //             backgroundColor: scanning ? "#aaa" : "#007bff",
-        //             padding: 12,
-        //             borderRadius: 8,
-        //             marginBottom: 12,
-        //         }}
-        //     >
-        //         <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center" }}>
-        //             {scanning ? "Scanning..." : "Scan for Students"}
-        //         </Text>
-        //     </TouchableOpacity>
-
-        //     <Text style={{ fontWeight: "bold", marginBottom: 8 }}>
-        //         Devices Found ({devices.length})
-        //     </Text>
-
-        //     <FlatList
-        //         data={devices}
-        //         keyExtractor={(item) => item.id}
-        //         renderItem={({ item }) => (
-        //             <View
-        //                 style={{
-        //                     backgroundColor: "#f4f4f4",
-        //                     padding: 12,
-        //                     borderRadius: 8,
-        //                     marginBottom: 8,
-        //                 }}
-        //             >
-        //                 <Text style={{ fontWeight: "bold" }}>{item.name || item.localName || "Unnamed"}</Text>
-        //                 <Text style={{ color: "#666", fontSize: 12 }}>{item.id}</Text>
-        //             </View>
-        //         )}
-        //         ListEmptyComponent={
-        //             !scanning ? (
-        //                 <Text style={{ textAlign: "center", color: "#666" }}>
-        //                     No students found
-        //                 </Text>
-        //             ) : null
-        //         }
-        //     />
-
-        //     <Text style={{ fontWeight: "bold", marginTop: 12 }}>Logs:</Text>
-        //     <ScrollView
-        //         style={{
-        //             flex: 1,
-        //             marginTop: 4,
-        //             borderWidth: 1,
-        //             borderColor: "#ddd",
-        //             padding: 8,
-        //             borderRadius: 8,
-        //         }}
-        //     >
-        //         {logs.map((line, i) => (
-        //             <Text key={i} style={{ fontSize: 12, color: "#333", marginBottom: 4 }}>
-        //                 {line}
-        //             </Text>
-        //         ))}
-        //     </ScrollView>
-        // </View>
     );
 }

@@ -88,6 +88,14 @@ export default function ClassIDPage() {
                     <ClassActionCard
                         icon={EyeIcon}
                         title="View Attendance"
+                        onPress={() => {
+                            router.push({
+                                pathname: "/class/[id]/view",
+                                params: {
+                                    id: id as string
+                                }
+                            })
+                        }}
                     />
                 </View>
                 <View className="w-[48%]">
